@@ -1,4 +1,5 @@
 from __future__ import annotations
+from math import ceil
 
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
@@ -79,34 +80,77 @@ def kb_students_toggle(
     save_cb: str,
     export_cb: str,
     back_cb: str,
+    page: int = 0,
+    page_size: int = 8,  # сколько студентов на странице
 ) -> InlineKeyboardMarkup:
+
     rows = []
-    for sid, full_name in students:
+
+    total_students = len(students)
+    total_pages = ceil(total_students / page_size)
+
+    # защита от выхода за границы
+    if page < 0:
+        page = 0
+    if page >= total_pages:
+        page = total_pages - 1 if total_pages > 0 else 0
+
+    start = page * page_size
+    end = start + page_size
+
+    page_students = students[start:end]
+
+    # --- Список студентов текущей страницы ---
+    for sid, full_name in page_students:
         is_present = sid in present_ids
         mark = "✅ " if is_present else "⬜️ "
+
         rows.append([
             InlineKeyboardButton(
-                text=f"{mark}{full_name}", 
-                callback_data=f"{cb_prefix}:toggle:{sid}"
+                text=f"{mark}{full_name}",
+                callback_data=f"{cb_prefix}:toggle:{sid}:{page}"  # передаём page!
             )
         ])
 
+    # --- Кнопки пагинации ---
+    nav_row = []
+
+    if page > 0:
+        nav_row.append(
+            InlineKeyboardButton(
+                text="⬅️",
+                callback_data=f"{cb_prefix}:page:{page-1}"
+            )
+        )
+
+    nav_row.append(
+        InlineKeyboardButton(
+            text=f"{page+1}/{total_pages if total_pages else 1}",
+            callback_data=f"{cb_prefix}:noop"
+        )
+    )
+
+    if page < total_pages - 1:
+        nav_row.append(
+            InlineKeyboardButton(
+                text="➡️",
+                callback_data=f"{cb_prefix}:page:{page+1}"
+            )
+        )
+
+    rows.append(nav_row)
+
     rows.append(
         [
-            InlineKeyboardButton(
-                text="💾 Сохранить", 
-                callback_data=save_cb
-            ),
-            InlineKeyboardButton(
-                text="📥 XLSX", 
-                callback_data=export_cb
-            ),
+            InlineKeyboardButton(text="💾 Сохранить", callback_data=save_cb),
+            InlineKeyboardButton(text="📥 XLSX", callback_data=export_cb),
         ]
     )
-    rows.append([InlineKeyboardButton(
-        text="⬅️ Назад", 
-        callback_data=back_cb
-    )])
+
+    rows.append([
+        InlineKeyboardButton(text="⬅️ Назад", callback_data=back_cb)
+    ])
+
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 

@@ -180,7 +180,9 @@ async def toggle_student(
         await call.answer("Сначала /start", show_alert=True)
         return
 
-    student_id = int(call.data.split(":")[-1])
+    parts = call.data.split(":")
+    student_id = int(parts[2])
+    page = int(parts[3])
     data = await state.get_data()
     session_id = int(data["session_id"])
 
@@ -198,9 +200,40 @@ async def toggle_student(
         save_cb="att:save",
         export_cb="att:export_xlsx",
         back_cb="menu:attendance",
+        page=page,  # сохраняем текущую страницу
     )
     await call.message.edit_reply_markup(reply_markup=kb)
     await call.answer("Ок")
+
+@router.callback_query(F.data.startswith(f"{STUD_PREFIX}:page:"))
+async def change_page(
+    call: CallbackQuery, 
+    state: FSMContext, 
+    db: AsyncSession
+):
+    page = int(call.data.split(":")[-1])
+
+    data = await state.get_data()
+    session_id = int(data["session_id"])
+
+    teacher = await get_teacher(db, call.from_user.id)
+    students = await StudentRepo(db).list_for_teacher(teacher.id)
+    present_ids = await AttendanceRepo(db).list_present_student_ids(
+        session_id
+    )
+
+    kb = kb_students_toggle(
+        students=[(s.id, s.full_name) for s in students],
+        present_ids=present_ids,
+        cb_prefix=STUD_PREFIX,
+        save_cb="att:save",
+        export_cb="att:export_xlsx",
+        back_cb="menu:attendance",
+        page=page,
+    )
+
+    await call.message.edit_reply_markup(reply_markup=kb)
+    await call.answer()
 
 
 @router.callback_query(F.data == "att:save")
